@@ -1,5 +1,5 @@
-import React, {ReactNode, useCallback, useRef} from 'react';
-import {Pressable, StyleSheet, Text, View} from 'react-native';
+import React, {ReactNode, useCallback, useRef, useEffect, useState} from 'react';
+import {Pressable, StyleSheet, Text, View, BackHandler} from 'react-native';
 import {nh, nw} from '~/common/normalize.helper.ts';
 import {BottomSheetModal} from '@gorhom/bottom-sheet';
 import {observer} from 'mobx-react-lite';
@@ -30,14 +30,30 @@ export const DropDown = observer(
     snapPoints: string;
   }) => {
     const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+    const [isOpen, setIsOpen] = useState(false);
 
     const openBottomSheet = useCallback(() => {
       bottomSheetModalRef.current?.present();
     }, []);
+
     const handleOptionPress = (option: OptionProps) => {
       onChange(option.id);
       bottomSheetModalRef.current?.dismiss();
     };
+
+    useEffect(() => {
+      const subscription = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          if (isOpen) {
+            bottomSheetModalRef.current?.dismiss();
+            return true;
+          }
+          return false;
+        },
+      );
+      return () => subscription.remove();
+    }, [isOpen]);
 
     return (
       <Pressable onPress={openBottomSheet}>
@@ -47,7 +63,10 @@ export const DropDown = observer(
           snapPoints={[snapPoints]}
           backgroundStyle={styles.bottom}
           handleIndicatorStyle={styles.indicator}
-          style={styles.modal}>
+          style={styles.modal}
+          onChange={index => setIsOpen(index >= 0)}
+          onDismiss={() => setIsOpen(false)}
+        >
           <View style={styles.bottomSheetContent}>
             <View style={styles.placeholder}>{placeholder}</View>
             {options.map(option => (
@@ -55,7 +74,7 @@ export const DropDown = observer(
                 key={option.id}
                 onPress={() => handleOptionPress(option)}
                 style={styles.textWrapper}
-                disabled={option.temporarily_unavailable ? true : false}>
+                disabled={!!option.temporarily_unavailable ?? false}>
                 <Text
                   style={[
                     styles.cityText,
