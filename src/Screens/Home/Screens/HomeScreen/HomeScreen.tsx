@@ -31,6 +31,8 @@ import {
 } from '~/Screens/Cart/cart.query.ts';
 
 const HomeScreen = observer(({navigation}: {navigation: any}) => {
+  const [visibleCount, setVisibleCount] = useState(5);
+
   const queryClient = useQueryClient();
   store.changeNavigation(navigation);
   const {data: wishlists, isLoading: isWishlistLoading} = useQuery(
@@ -124,7 +126,8 @@ const HomeScreen = observer(({navigation}: {navigation: any}) => {
               <Text style={styles.product}>{selectedCategory?.name}</Text>
             </View>
           }
-          data={items}
+          data={items?.slice(0, visibleCount) ?? []}
+          onEndReached={() => setVisibleCount(prev => prev + 5)}
           keyExtractor={item => String(item.id)}
           renderItem={({item}) => (
             <ProductCard
