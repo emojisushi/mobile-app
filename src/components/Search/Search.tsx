@@ -8,16 +8,19 @@ export const Search = ({
   editable,
   autoFocus,
   onSearch,
+  inputRef,
 }: {
   editable?: boolean;
   autoFocus?: boolean;
   onSearch: (value: string) => void;
+  inputRef?: React.RefObject<TextInput>;
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   return (
     <View style={styles.container}>
       <MagnifyingGlass style={styles.magnify} />
       <TextInput
+        ref={inputRef}
         maxLength={30}
         onChangeText={e => onSearch(e)}
         onFocus={() => setIsFocused(!isFocused)}

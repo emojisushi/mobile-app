@@ -103,7 +103,7 @@ const HomeScreen = observer(({navigation}: {navigation: any}) => {
     <View style={styles.container}>
       <Spinner
         visible={isLoading || refreshing}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />
@@ -115,7 +115,9 @@ const HomeScreen = observer(({navigation}: {navigation: any}) => {
               {banners.length > 0 && <Banner navigation={navigation} />}
               <View style={styles.searchWrapper}>
                 <Pressable onPress={() => navigation.navigate('SearchModal')}>
-                  <Search onSearch={() => ''} editable={false} />
+                  <View pointerEvents="none">
+                    <Search onSearch={() => ''} editable={false} />
+                  </View>
                 </Pressable>
               </View>
               <Category />
@@ -145,8 +147,7 @@ const HomeScreen = observer(({navigation}: {navigation: any}) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#141414',
-    height: '100%',
-    width: '100%',
+    flex: 1,
   },
   grid: {
     display: 'flex',

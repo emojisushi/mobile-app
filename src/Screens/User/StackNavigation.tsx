@@ -11,10 +11,13 @@ import SavedAddressesScreen from './Screens/SavedAddressesScreen/SavedAddressesS
 import DeliveryAndPayment from './Screens/DeliveryAndPayment/DeliveryAndPayment.tsx';
 import RefundRules from './Screens/RefundRules/RefundRules.tsx';
 import UpdatePasswordScreen from './Screens/UpdatePasswordScreen/UpdatePasswordScreen.tsx';
+import ProfileScreen from './Screens/ProfileScreen/ProfileScreen.tsx';
+import OrderHistoryScreen from './Screens/OrderHistoryScreen/OrderHistoryScreen.tsx';
+import SignInWithPhoneScreen from './Screens/SignInWithPhoneScreen/SignInWithPhoneScreen.tsx';
 
 type ScreenProps = {
   Profile: undefined;
-  //   OrderHistory: undefined;
+  OrderHistory: undefined;
   BonusHistory: undefined;
   UserScreen: undefined;
   SavedAddresses: undefined;
@@ -22,6 +25,7 @@ type ScreenProps = {
   RefundRules: undefined;
   Contacts: undefined;
   SignIn: undefined;
+  SignInWithPhone: undefined;
   SignUp: undefined;
   ResetPassword: undefined;
   UpdatePassword: undefined;
@@ -32,20 +36,21 @@ const Stack = createStackNavigator<ScreenProps>();
 const StackNavigation = () => {
   const stackOptions = {
     headerShown: false,
-    animationEnabled: false,
+    animationEnabled: true,
+    freezeOnBlur: true,
   };
 
   return (
     <Stack.Navigator screenOptions={stackOptions} initialRouteName="UserScreen">
       <Stack.Screen name="UserScreen" component={UserScreen} />
-      {/* <Stack.Screen
+      <Stack.Screen
         name="OrderHistory"
         component={OrderHistoryScreen}
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',
         }}
-      /> */}
+      />
       <Stack.Screen
         name="BonusHistory"
         component={BonusHistoryScreen}
@@ -87,8 +92,24 @@ const StackNavigation = () => {
         }}
       />
       <Stack.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
         name="SignIn"
         component={SignInScreen}
+        options={{
+          gestureEnabled: true,
+          gestureDirection: 'horizontal',
+        }}
+      />
+      <Stack.Screen
+        name="SignInWithPhone"
+        component={SignInWithPhoneScreen}
         options={{
           gestureEnabled: true,
           gestureDirection: 'horizontal',

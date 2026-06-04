@@ -13,18 +13,25 @@ const Stack = createStackNavigator<ScreenProps>();
 
 const CartNavigation = () => {
   return (
-    <Stack.Navigator initialRouteName="CartScreen">
+    <Stack.Navigator
+      initialRouteName="CartScreen"
+      screenOptions={{
+        headerShown: false,
+        cardStyle: {
+          backgroundColor: '#141414',
+        },
+      }}>
       <Stack.Screen
         options={{
           headerShown: false,
-          animationEnabled: false,
+          animationEnabled: true,
         }}
         name="CartScreen"
         component={CartScreen}
       />
       <Stack.Screen
         options={{
-          presentation: 'modal',
+          presentation: 'card',
           headerShown: false,
           animationTypeForReplace: 'push',
           cardStyle: {

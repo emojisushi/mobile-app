@@ -26,7 +26,7 @@ const BonusHistoryScreen = () => {
     <View style={styles.container}>
       <Spinner
         visible={isHistoryLoading || isBonusAmountLoading}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />

@@ -55,6 +55,7 @@ export const Navigation = () => {
         height: nh(80),
         backgroundColor: '#171717',
       },
+      contentStyle: {backgroundColor: '#141414'},
     }),
     [],
   );
@@ -68,7 +69,7 @@ export const Navigation = () => {
       />
       <Tab.Screen name="HomeNavigation" component={HomeNavigation} />
       <Tab.Screen name="Category" component={CategoryScreen} />
-      <Tab.Screen name="User" component={StackNavigation} />
+      <Tab.Screen name="User" component={StackNavigation}/>
     </Tab.Navigator>
   );
 };

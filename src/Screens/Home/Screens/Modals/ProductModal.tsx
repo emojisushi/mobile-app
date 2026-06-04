@@ -100,9 +100,9 @@ const ProductModal = observer(
     };
 
     return (
-      <View>
-        <Header dropdownVisible={false} />
-        <BackButton navigation={navigation} />
+      <View style={[styles.container]}>
+        {/* <Header dropdownVisible={false} /> */}
+        <Header showBackButton={true} navigation={navigation} dropdownVisible={false} headerVisible={false} />
         <View style={styles.container}>
           <View style={styles.productContainer}>
             {product.mainImage ? (
@@ -182,7 +182,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#141414',
     width: '100%',
     height: '100%',
-    paddingTop: nh(30),
   },
   image: {
     width: nw(265),

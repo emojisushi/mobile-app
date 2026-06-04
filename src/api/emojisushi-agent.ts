@@ -25,6 +25,11 @@ import {
   IGetBonusOptionsRes,
   IGetAppAllowedVersionsRes,
   IGetContacts,
+  IGetAddressesRes,
+  IGetPhoneRes,
+  IGetOrderStatusRes,
+  IGetOrderHistoryRes,
+  IOrderHistory,
 } from './types';
 
 export function createEmojisushiAgent(options: {service: string}) {
@@ -67,7 +72,7 @@ export function createEmojisushiAgent(options: {service: string}) {
   }
 
   function getCheckoutForm(
-    params: any,
+    params = {},
     axiosConfig: AxiosAuthRefreshRequestConfig = {},
   ) {
     return client.get<IGetCheckoutFormRes>('checkout', {
@@ -130,7 +135,12 @@ export function createEmojisushiAgent(options: {service: string}) {
       payment_method_id: number;
       spot_id: number;
       address?: string;
-
+      address_details?: string;
+      house_type: string;
+      house: string;
+      floor: string;
+      apartment: string;
+      entrance: string;
       comment?: string;
       sticks?: number;
       change?: string;
@@ -142,6 +152,8 @@ export function createEmojisushiAgent(options: {service: string}) {
           quantity: number;
         }[];
       };
+
+      mobile?: boolean;
     },
     axiosConfig: AxiosAuthRefreshRequestConfig = {},
   ) {
@@ -262,7 +274,7 @@ export function createEmojisushiAgent(options: {service: string}) {
 
   function register(
     data: {
-      email: string;
+      phone: string;
       password: string;
       password_confirmation: string;
       name: string;
@@ -273,16 +285,21 @@ export function createEmojisushiAgent(options: {service: string}) {
     },
     axiosConfig: AxiosAuthRefreshRequestConfig = {},
   ) {
-    return client.post<RegisterResData>('auth/register', data, axiosConfig);
+    return client.post<RegisterResData>('auth/register-with-phone', data, axiosConfig);
   }
 
   function login(
-    data: {email: string; password: string},
+    data: {phone: string; password: string},
     axiosConfig: AxiosAuthRefreshRequestConfig = {},
   ) {
-    return client.post<LoginResData>('auth/login', data, axiosConfig);
+    return client.post<LoginResData>('auth/login-with-phone', data, axiosConfig);
   }
-
+  function loginWithSMS(
+    data: {phone: string; code: string},
+    axiosConfig: AxiosAuthRefreshRequestConfig = {},
+  ) {
+    return client.post<LoginResData>('auth/login-with-sms', data, axiosConfig);
+  }
   function restorePassword(
     data: {
       email: string;
@@ -446,6 +463,18 @@ export function createEmojisushiAgent(options: {service: string}) {
       } as AxiosAuthRefreshRequestConfig)
       .then(res => res.data);
   }
+  function getOrderHistory(params = {}, axiosConfig = {}) {
+    return client.get<any>(
+      'user/orders',
+      Object.assign({params, skipAuthRefresh: true}, axiosConfig),
+    );
+  }
+  function getOrder(params : {order_id: string}, axiosConfig = {}) {
+    return client.get<IOrderHistory>(
+      `user/order/${params.order_id}`,
+      Object.assign({params, skipAuthRefresh: true}, axiosConfig),
+    );
+  }
   function getBonusHistory(params = {}, axiosConfig = {}) {
     return client.get<IGetBonusHistoryRes>(
       'user/bonus/history',
@@ -470,6 +499,62 @@ export function createEmojisushiAgent(options: {service: string}) {
       Object.assign({params, skipAuthRefresh: true}, axiosConfig),
     );
   }
+  function getAddresses(params: {city_slug: string}, axiosConfig = {}) {
+    return client.get<IGetAddressesRes>(
+      'addresses',
+      Object.assign({params, skipAuthRefresh: true}, axiosConfig),
+    );
+  }
+  function getPhoneStatus(
+    params: {
+      phone: string;
+    },
+    axiosConfig: AxiosAuthRefreshRequestConfig = {},
+  ) {
+    return client.get<IGetPhoneRes>('/sms/check-phone', {
+      params,
+      ...axiosConfig,
+    });
+  }
+  function generateCode(
+    data: {
+      phone: string;
+      city_slug: string;
+    },
+    axiosConfig: AxiosAuthRefreshRequestConfig = {},
+  ) {
+    return client.post('/sms/generate-code', data, axiosConfig);
+  }
+
+  function generateCodeMobile(
+    data: {
+      phone: string;
+    },
+    axiosConfig: AxiosAuthRefreshRequestConfig = {},
+  ) {
+    return client.post('/sms/generate-code-mobile', data, axiosConfig);
+  }
+
+  function verifyCode(
+    data: {
+      phone: string;
+      code: string;
+    },
+    axiosConfig: AxiosAuthRefreshRequestConfig = {},
+  ) {
+    return client.post('/sms/check-code', data, axiosConfig);
+  }
+  function getOrderStatus(
+    params: {
+      order_id: string;
+    },
+    axiosConfig: AxiosAuthRefreshRequestConfig = {},
+  ) {
+    return client.get<IGetOrderStatusRes>('order/status', {
+      params,
+      ...axiosConfig,
+    });
+  }
   return {
     axiosClient,
     getProducts,
@@ -490,6 +575,7 @@ export function createEmojisushiAgent(options: {service: string}) {
     getBanners,
     register,
     login,
+    loginWithSMS,
     restorePassword,
     resetPassword,
     updateUserPassword,
@@ -509,6 +595,14 @@ export function createEmojisushiAgent(options: {service: string}) {
     getBonusHistory,
     getBonusOptions,
     getAppAllowedVersion,
-    getContacts
+    getContacts,
+    getAddresses,
+    getPhoneStatus,
+    generateCode,
+    generateCodeMobile,
+    verifyCode,
+    getOrderStatus,
+    getOrderHistory,
+    getOrder,
   };
 }

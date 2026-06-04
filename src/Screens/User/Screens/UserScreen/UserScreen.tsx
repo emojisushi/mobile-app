@@ -14,22 +14,20 @@ import ProfileScreen from '../ProfileScreen/ProfileScreen.tsx';
 import UserCircle from '~/assets/Icons/UserCircle.svg';
 import Caret from '~/assets/Icons/Caret.svg';
 import ClockCounter from '~/assets/Icons/ClockCounterClockwise.svg';
-import Truck from '~/assets/Icons/Truck.svg';
 import Phone from '~/assets/Icons/Phone.svg';
 import CreditCard from '~/assets/Icons/CreditCard.svg';
 import Coins from '~/assets/Icons/Coins.svg';
 import {Header, UserOption} from '~/components';
 import {observer} from 'mobx-react-lite';
 import {agent} from '~/../APIClient.tsx';
-import {QueryClient, useQuery, useQueryClient} from '@tanstack/react-query';
+import {useQuery, useQueryClient} from '@tanstack/react-query';
 import Spinner from 'react-native-loading-spinner-overlay/lib/index';
-import {clearToken, getToken} from '~/common/token/token.ts';
+import {clearToken} from '~/common/token/token.ts';
 import {bonusOptionsQuery} from '~/common/queries/bonusOptions.query.ts';
 
 const UserScreen = observer(({navigation}: {navigation: any}) => {
   const queryClient = useQueryClient();
   const [logged, setLogged] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
   const {data: bonusOptions} = useQuery(bonusOptionsQuery);
   const {
     data: user,
@@ -67,7 +65,7 @@ const UserScreen = observer(({navigation}: {navigation: any}) => {
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [queryClient]);
   return (
     <ScrollView
       contentContainerStyle={{flexGrow: 1}}
@@ -77,7 +75,7 @@ const UserScreen = observer(({navigation}: {navigation: any}) => {
       <View style={styles.container}>
         <Spinner
           visible={isLoading || refreshing}
-          textContent={'Loading...'}
+          textContent={'Зачекайте...'}
           textStyle={{color: 'yellow'}}
           overlayColor="rgba(0, 0, 0, 0.75)"
         />
@@ -86,7 +84,7 @@ const UserScreen = observer(({navigation}: {navigation: any}) => {
           <>
             <View style={styles.horizontalLine} />
             <View style={styles.profileContainerColumn}>
-              <TouchableOpacity onPress={() => setIsVisible(!isVisible)}>
+              <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
                 <View style={styles.profileContainer}>
                   <View style={styles.profileTextUserWrapper}>
                     <View style={styles.userCircle}>
@@ -94,7 +92,7 @@ const UserScreen = observer(({navigation}: {navigation: any}) => {
                     </View>
                     <View style={styles.profileTextWrapper}>
                       <Text style={styles.profileText}>Ваш профіль</Text>
-                      <Text style={styles.gmail}>{user?.email}</Text>
+                      <Text style={styles.gmail}>{user?.phone}</Text>
                     </View>
                   </View>
                   <Caret
@@ -112,9 +110,10 @@ const UserScreen = observer(({navigation}: {navigation: any}) => {
                 {!!bonusOptions?.bonus_enabled && (
                   <TouchableOpacity
                     style={styles.signInBtn}
-                    onPress={() => navigation.navigate('BonusHistory')}>
+                    // onPress={() => navigation.navigate('BonusHistory')}
+                  >
                     <Text style={styles.signInBtnText}>
-                      Бонуси: {user?.bonus_amount}
+                      Бонуси: {(user?.bonus_amount ?? 0) / 100} ₴
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -128,10 +127,7 @@ const UserScreen = observer(({navigation}: {navigation: any}) => {
                 <UserCircle color="#727272" />
               </View>
               <Text style={styles.signInText}>Увійдіть в акаунт</Text>
-              <Text style={styles.descriptionText}>
-                Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
-                eiusmod tempor incididunt.
-              </Text>
+              <Text style={styles.descriptionText}></Text>
               <View style={styles.btnWrapper}>
                 <TouchableOpacity
                   onPress={() => navigation.navigate('SignUp')}
@@ -148,14 +144,18 @@ const UserScreen = observer(({navigation}: {navigation: any}) => {
             </View>
           </View>
         )}
-        {isVisible && (
-          <ProfileScreen
-            visible={isVisible}
-            setIsVisible={setIsVisible}
-            navigation={navigation}
-          />
+        {logged && (
+          <>
+            <View style={styles.horizontalLine} />
+            <TouchableOpacity
+              onPress={() => navigation.navigate('OrderHistory')}>
+              <UserOption
+                title="Історія замовлень"
+                svgIcon={<ClockCounter color="#727272" />}
+              />
+            </TouchableOpacity>
+          </>
         )}
-        <View style={styles.horizontalLine} />
         {/* <TouchableOpacity onPress={() => navigation.navigate('BonusHistory')}>
         <UserOption
           title="Історія бонусів"
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     fontFamily: 'MontserratRegular',
     fontWeight: '400',
     fontSize: nh(13),
-    lineHeight: 16,
+    lineHeight: 24,
     color: '#757575',
   },
   profileText: {
@@ -303,6 +303,7 @@ const styles = StyleSheet.create({
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: nh(15),
   },
   signUpBtnText: {
     fontFamily: 'MontserratRegular',

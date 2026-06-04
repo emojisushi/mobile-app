@@ -9,6 +9,9 @@ type Option = {
   icon?: React.FC<SvgProps>;
 };
 
+const CONTAINER_WIDTH = nw(365);
+const ITEM_MARGIN = nw(10);
+
 const Swiper = ({
   options,
   value,
@@ -22,6 +25,8 @@ const Swiper = ({
     onValueChange(option.value);
   };
 
+  const itemWidth = (CONTAINER_WIDTH - ITEM_MARGIN * options.length) / options.length;
+
   return (
     <View style={styles.container}>
       {options.map(option => (
@@ -30,7 +35,8 @@ const Swiper = ({
           onPress={() => handlePress(option)}
           style={[
             styles.textWrapper,
-            option.value === value ? styles.active : '',
+            {width: itemWidth},
+            option.value === value ? styles.active : null,
           ]}>
           {option.icon && (
             <option.icon
@@ -43,7 +49,8 @@ const Swiper = ({
             style={[
               value === option.value ? styles.blackText : styles.whiteText,
               option.icon ? {marginLeft: nw(15)} : {marginLeft: 0},
-            ]}>
+            ]}
+          >
             {option.name}
           </Text>
         </Pressable>

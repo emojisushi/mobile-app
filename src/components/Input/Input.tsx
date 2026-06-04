@@ -43,6 +43,7 @@ export const Input = ({
   editable = true,
   value,
   error,
+  otp = false,
 }: {
   placeholder: string;
   inputMode: 'email' | 'text' | 'tel' | 'numeric';
@@ -50,6 +51,7 @@ export const Input = ({
   editable?: boolean;
   value: string;
   error?: string;
+  otp?: boolean;
 }) => {
   const [isFocused, setIsFocused] = useState(false);
 
@@ -69,7 +71,8 @@ export const Input = ({
         onChangeText={onChangeText}
         value={value}
         editable={editable}
-
+        textContentType={otp ? 'oneTimeCode' : 'none'}
+        autoComplete={otp ? 'sms-otp' : 'off'}
       />
 
       {error && (

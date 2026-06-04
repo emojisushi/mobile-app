@@ -17,7 +17,43 @@ import {
 } from 'react-native-reanimated';
 import {agent} from './APIClient.tsx';
 import OldAppVersion from '~/components/OldAppVersion/OldAppVersion.tsx';
-
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
+import {enableScreens} from 'react-native-screens';
+enableScreens(true);
+const linking = {
+  prefixes: ['emojisushi://'],
+  config: {
+    screens: {
+      HomeNavigation: {
+        screens: {
+          PaymentStatusScreen: {
+            path: 'payment',
+            parse: {
+              orderId: (orderId: string) => orderId,
+              paymentUrl: (paymentUrl: string) => paymentUrl,
+              order_id: (order_id: string) => order_id,
+              wait_time: (wait_time: string) => +wait_time,
+            },
+          },
+        },
+      },
+    },
+  },
+};
+const AppTheme = {
+  dark: true,
+  colors: {
+    primary: '#FFE600',
+    background: '#141414',
+    card: '#171717',
+    text: '#FFFFFF',
+    border: '#272727',
+    notification: '#FFE600',
+  },
+};
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -26,11 +62,11 @@ const queryClient = new QueryClient({
   },
 });
 Sentry.init({});
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false,
+});
 function App() {
-  configureReanimatedLogger({
-    level: ReanimatedLogLevel.warn,
-    strict: false,
-  });
   return (
     <Sentry.ErrorBoundary
       onError={(error, componentStack) =>
@@ -43,11 +79,13 @@ function App() {
       fallback={({resetError}) => <ErrorScreen resetError={resetError} />}>
       <GestureHandlerRootView>
         <QueryClientProvider client={queryClient}>
-          <NavigationContainer>
+          <NavigationContainer linking={linking as never} theme={AppTheme}>
             <BottomSheetModalProvider>
               <View style={styles.container}>
                 <OldAppVersion>
-                  <Navigation />
+                  <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+                    <Navigation />
+                  </SafeAreaProvider>
                   <ClosedRestaurant />
                 </OldAppVersion>
               </View>

@@ -57,7 +57,7 @@ export function fuzzySearch<El extends Record<string, unknown>>(
       // todo: optimize sorting
       .sort((a, b) => a.bestScore - b.bestScore)
       .sort((a, b) =>
-        a.partial_match == b.partial_match ? 0 : a.partial_match ? -1 : 1,
+        a.partialMatch == b.partialMatch ? 0 : a.partialMatch ? -1 : 1,
       )
   );
 }

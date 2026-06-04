@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState} from 'react';
 import {StyleSheet, Text, TouchableOpacity, View} from 'react-native';
 import {nh, nw} from '~/common/normalize.helper.ts';
 import PasswordInput from '~/Screens/User/components/PasswordInput/PasswordInput.tsx';
@@ -14,26 +14,36 @@ import {agent} from '~/../APIClient.tsx';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import Spinner from 'react-native-loading-spinner-overlay/lib';
 import {setToken} from '~/common/token/token';
+import {isValidUkrainianPhone} from '~/Screens/Cart/utils';
+import {PhoneVerification} from '~/components/PhoneVerification/PhoneVerification.tsx';
+import store from '~/stores/store';
 
 const validationRequired = 'Заповніть це поле';
 const RegisterSchema = yup.object({
-  name: yup.string().min(2).required(validationRequired),
-  surname: yup.string().min(2).required(validationRequired),
-  email: yup.string().email().min(6).max(255).required(validationRequired),
+  //   name: yup.string().min(2).required(validationRequired),
+  //   surname: yup.string().min(2).required(validationRequired),
+  phone: yup
+    .string()
+    .required(validationRequired)
+    .test(
+      'is possible phone number',
+      () => 'Телефон повинен бути у форматі +380xxxxxxxxx',
+      isValidUkrainianPhone,
+    ),
   password: yup.string().min(8).max(255).required(validationRequired),
   agree: yup.boolean().isTrue(validationRequired),
 });
 type FormValues = {
   name: string;
   surname: string;
-  email: string;
+  phone: string;
   password: string;
   agree: boolean;
 };
 const InitialValue: FormValues = {
   name: '',
   surname: '',
-  email: '',
+  phone: '',
   password: '',
   agree: false,
 };
@@ -42,6 +52,8 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
   const {
     handleSubmit,
     control,
+    watch,
+    trigger,
     formState: {errors},
     setError,
   } = useForm({
@@ -52,12 +64,13 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
     ),
   });
   const queryClient = useQueryClient();
+  const [phoneConfirmed, setPhoneConfirmed] = useState(false);
 
   const {mutate: registerMutation, isLoading} = useMutation({
     mutationFn: async (data: FormValues) => {
-      const {email, password, name, surname, agree} = data;
+      const {phone, password, name, surname, agree} = data;
       return await agent.register({
-        email,
+        phone,
         password,
         password_confirmation: password,
         name,
@@ -82,8 +95,8 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
         const fieldErrors = error.response?.data.errors;
         if (fieldErrors) {
           Object.keys(fieldErrors).forEach(key => {
-            if (key === 'email') {
-              setError('email', {
+            if (key === 'phone') {
+              setError('phone', {
                 message: fieldErrors[key][0],
               });
             }
@@ -95,26 +108,36 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
     },
   });
   const onSubmit = async (data: FormValues) => {
+    if (!phoneConfirmed) {
+      setError('phone', {
+        message: 'Підтвердіть номер телефону',
+      });
+      return;
+    }
     registerMutation(data);
   };
   return (
     <View style={styles.container}>
       <Spinner
         visible={isLoading}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />
-      <Header />
-      <Text style={styles.header}>Регистрация</Text>
+      <Header
+        dropdownVisible={false}
+        navigation={navigation}
+        showBackButton={true}
+      />
+      <Text style={styles.header}>Реєстрація</Text>
       <View>
-        <View style={styles.inputMargin}>
+        {/* <View style={styles.inputMargin}>
           <Controller
             name="name"
             control={control}
             render={({field: {onChange, value}}) => (
               <Input
-                placeholder="Имя"
+                placeholder="Ім'я"
                 inputMode="text"
                 value={value}
                 onChangeText={v => onChange(v)}
@@ -122,15 +145,15 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
               />
             )}
           />
-          {/* <Input placeholder={'Имя'} inputMode={'text'} /> */}
-        </View>
-        <View style={styles.inputMargin}>
+          {/* <Input placeholder={'Имя'} inputMode={'text'} />
+        </View> */}
+        {/* <View style={styles.inputMargin}>
           <Controller
             name="surname"
             control={control}
             render={({field: {onChange, value}}) => (
               <Input
-                placeholder="Фамилия"
+                placeholder="Прізвище"
                 inputMode="text"
                 value={value}
                 onChangeText={v => onChange(v)}
@@ -138,19 +161,19 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
               />
             )}
           />
-          {/* <Input placeholder={'Фамилия'} inputMode={'text'} /> */}
-        </View>
+          {/* <Input placeholder={'Фамилия'} inputMode={'text'} />
+        </View> */}
         <View style={styles.inputMargin}>
           <Controller
-            name="email"
+            name="phone"
             control={control}
             render={({field: {onChange, value}}) => (
               <Input
-                placeholder="Email"
-                inputMode="email"
+                placeholder="Телефон"
+                inputMode="tel"
                 value={value}
                 onChangeText={v => onChange(v)}
-                error={errors.email?.message}
+                error={errors.phone?.message}
               />
             )}
           />
@@ -171,15 +194,27 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
           />
           {/* <PasswordInput /> */}
         </View>
+        <View style={styles.inputMargin}>
+          <PhoneVerification
+            control={control}
+            phone={watch('phone')}
+            city_slug={store.city}
+            enabled={true}
+            trigger={trigger}
+            onPhoneConfirmedChange={setPhoneConfirmed}
+            checkboxEnabled={false}
+            error={errors.phone?.message}
+          />
+        </View>
         <Controller
           name="agree"
           control={control}
           render={({field: {onChange, value}}) => (
             <View style={styles.agreementWrapper}>
-              <CheckBox active={value} onChange={onChange}></CheckBox>
+              <CheckBox active={value} onChange={onChange} />
               <Text style={styles.agreementText}>
-                Я согласен с условиями использования и обработки моих
-                персональных данных
+                Я погоджуюся з умовами використання та обробки моїх персональних
+                даних
               </Text>
               {errors.agree?.message && (
                 <View style={styles.errorContainer}>
@@ -192,15 +227,15 @@ const SignUpScreen = ({navigation}: {navigation: any}) => {
         {/* <CheckBox /> */}
 
         <TouchableOpacity style={styles.btn} onPress={handleSubmit(onSubmit)}>
-          <Text style={styles.btnText}>Регистрация</Text>
+          <Text style={styles.btnText}>Реєстрація</Text>
         </TouchableOpacity>
         <View style={styles.textWrapper}>
           <Text style={styles.yellowText}>
-            Уже есть аккаунт?
+            У вас вже є аккаунт?
             <Text
               onPress={() => navigation.navigate('SignIn')}
               style={styles.link}>
-              Войти
+              Увійти
             </Text>
           </Text>
         </View>

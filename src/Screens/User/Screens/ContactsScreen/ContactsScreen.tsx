@@ -26,7 +26,7 @@ const ContactsScreen = observer(({navigation}: {navigation: any}) => {
   const cities = (cityRes || []).map(city => city);
   const city = cities.filter(c => c.slug === store.city)[0];
   const phonesArray =
-    city.phones && city.phones !== '' ? city.phones.split(',') : null;
+    city?.phones && city.phones !== '' ? city.phones.split(',') : null;
   const openLinkHandler = async (appUrl: string, webUrl: string) => {
     try {
       const supported = appUrl !== '' && (await Linking.canOpenURL(appUrl));
@@ -39,8 +39,7 @@ const ContactsScreen = observer(({navigation}: {navigation: any}) => {
   };
   return (
     <View style={styles.container}>
-      <Header />
-      <BackButton navigation={navigation} />
+      <Header showBackButton={true} navigation={navigation} />
       <View style={styles.wrapper}>
         <Text style={styles.header}>Контакти</Text>
         <View style={styles.btnWrapper}>

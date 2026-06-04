@@ -21,7 +21,7 @@ type FormValues = {
 const InitialValue: FormValues = {
   email: '',
 };
-const ResetPasswordScreen = () => {
+const ResetPasswordScreen = ({navigation}: {navigation: any}) => {
   const [isSent, setIsSent] = useState(false);
   const {mutate: resetMutation, isLoading} = useMutation({
     mutationFn: async (data: FormValues) => {
@@ -68,12 +68,12 @@ const ResetPasswordScreen = () => {
     <View style={styles.container}>
       <Spinner
         visible={isLoading}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />
-      <Header />
-      <Text style={styles.header}>Восстановление пароля</Text>
+      <Header dropdownVisible={false} navigation={navigation} showBackButton={true} />
+      <Text style={styles.header}>Відновлення пароля</Text>
       <View style={styles.inputTextWrapper}>
         <Controller
           name="email"
@@ -99,10 +99,10 @@ const ResetPasswordScreen = () => {
       {!isSent && (
         <>
           <Text style={styles.emailText}>
-            Введите Ваш E-mail адрес для которого необходимо скинуть пароль
+            Введіть Ваш E-mail для якого необхідно скинути пароль
           </Text>
           <TouchableOpacity style={styles.btn} onPress={handleSubmit(onSubmit)}>
-            <Text style={styles.btnText}>Отправить</Text>
+            <Text style={styles.btnText}>Відправити</Text>
           </TouchableOpacity>
         </>
       )}
@@ -111,7 +111,7 @@ const ResetPasswordScreen = () => {
           style={styles.textWrapper}
           onPress={handleSubmit(onSubmit)}>
           <Text style={styles.yellowText}>
-            Не пришел код? <Text style={styles.link}>Отправить ещё</Text>
+            Не прийшов код? <Text style={styles.link}>Відправити ще</Text>
           </Text>
         </TouchableOpacity>
       )}

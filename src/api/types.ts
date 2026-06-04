@@ -589,6 +589,12 @@ export type IUser = IRainLabUser & {
   customer: ICustomer | null;
   is_call_center_admin: boolean;
   bonus_amount: number;
+  street: string | null;
+  house_type: string | null;
+  house: string | null;
+  floor: string | null;
+  apartment: string | null;
+  entrance: string | null;
 };
 
 export type RegisterResData = {
@@ -608,6 +614,9 @@ export type LoginResData = {
 };
 
 export type IFetchUserResData = IUser;
+export type unavailable_category = {
+  id: number;
+};
 
 export type ISpot = {
   id: number;
@@ -631,6 +640,9 @@ export type ISpot = {
   is_main: boolean;
   district: IDistrict;
   temporarily_unavailable: boolean;
+  unavailable_categories: unavailable_category[];
+  unavailable_products: number[];
+  wait_minutes_spot: number;
 };
 
 export type IDistrict = {
@@ -675,6 +687,26 @@ export type AxiosAuthRefreshRequestConfig = AxiosRequestConfig & {
   skipAuthRefresh?: boolean;
 };
 
+export type IProductHistoryItem = {
+  product_id: string;
+  product_sum: number;
+  num: number;
+};
+
+export type IOrderHistory = {
+  transaction_id: number;
+  order_id: number;
+  status: boolean;
+  user_id: number;
+  pay_type: number;
+  products: IProductHistoryItem[];
+  sum: number;
+  date_start_new: string;
+  address: string;
+};
+
+export type IGetOrderHistoryRes = IOrderHistory[];
+
 export type IBonusHistory = {
   id: number;
   order_id: number;
@@ -708,4 +740,35 @@ export type IGetContacts = {
   telegram_display_text: string;
   telegram_app: string;
   telegram_web: string;
+};
+
+export type IAddressAutocomplete = {
+  buildings: string[];
+  delivery_price: number;
+  id: number;
+  min: number;
+  min_amount: number;
+  name_ru: string;
+  name_ua: string;
+  recommended_products: number[];
+  spot_name: string;
+  suburb_ru: string;
+  suburb_ua: string;
+  unavailable_categories: number[];
+  unavailable_products: number[];
+  wait_minutes_delivery: number;
+};
+
+export type IGetAddressesRes = {
+  addresses: IAddressAutocomplete[];
+};
+
+export type IGetOrderStatusRes = {
+  status: number;
+  online_payment_id: string;
+  poster_id: string;
+};
+
+export type IGetPhoneRes = {
+  confirmed: boolean;
 };

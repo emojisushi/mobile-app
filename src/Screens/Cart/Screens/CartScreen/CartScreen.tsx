@@ -1,5 +1,6 @@
 import React, {useEffect} from 'react';
 import {
+  Image,
   ScrollView,
   StyleSheet,
   Text,
@@ -7,7 +8,7 @@ import {
   View,
 } from 'react-native';
 
-import EmptyCart from '~/assets/Icons/EmptyCart.svg';
+import EmptyCart from '~/assets/Icons/EmptyCart.png';
 import {nh, nw} from '~/common/normalize.helper.ts';
 import {ProductCartCard, Header, isClosed} from '~/components';
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
@@ -24,7 +25,7 @@ import {observer} from 'mobx-react-lite';
 const CartScreen = observer(({navigation}: {navigation: any}) => {
   const {data: cartItems} = useQuery(cartQuery(store.city));
 
-  const {data: productQueryRes, isLoading: isProductsLoading} = useQuery(
+  const {data: productQueryRes} = useQuery(
     productsQuery({
       category_slug: 'menu',
       limit: DEFAULT_PRODUCT_LIMIT,
@@ -81,7 +82,11 @@ const CartScreen = observer(({navigation}: {navigation: any}) => {
         </View>
       ) : (
         <View style={styles.emptyCart}>
-          <EmptyCart />
+          <Image
+            source={EmptyCart}
+            style={{width: nw(200), height: nh(200), tintColor: '#393939'}}
+            resizeMode="contain"
+          />
           <Text style={styles.emptyCartText}>Ваш кошик порожній :(</Text>
         </View>
       )}
@@ -92,7 +97,9 @@ const CartScreen = observer(({navigation}: {navigation: any}) => {
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#141414',
-    height: '100%',
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
   },
   cartTitle: {
     fontFamily: 'MontserratRegular',
@@ -110,13 +117,15 @@ const styles = StyleSheet.create({
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    height: '100%',
+    flex: 1,
   },
   emptyCartText: {
     color: '#727272',
-    fontSize: nh(16),
+    fontSize: nh(14),
     fontFamily: 'MontserratRegular',
     fontWeight: '500',
+    width: nw(200),
+    textAlign: 'center',
   },
   productsWrapper: {
     marginLeft: nw(13),

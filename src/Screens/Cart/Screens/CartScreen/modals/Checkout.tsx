@@ -1,16 +1,25 @@
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
+  Linking,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-
+import {Platform} from 'react-native';
 import * as yup from 'yup';
 
 import Swiper from '../components/Swiper.tsx';
-import {Input, Counter, Header, BackButton, DropDown} from '~/components';
+import {
+  Input,
+  Counter,
+  Header,
+  BackButton,
+  DropDown,
+  CheckBox,
+  isClosed,
+} from '~/components';
 
 import {useMutation, useQuery, useQueryClient} from '@tanstack/react-query';
 import {spotsQuery} from '~/Screens/Cart/spots.query.ts';
@@ -27,11 +36,11 @@ import {paymentQuery} from '~/Screens/Cart/payment.query.ts';
 import store from '~/stores/store.ts';
 import {observer} from 'mobx-react-lite';
 import {CART_STORAGE_KEY, cartQuery} from '~/Screens/Cart/cart.query.ts';
-import {Controller, useForm, useWatch} from 'react-hook-form';
+import {Controller, set, useForm, useWatch} from 'react-hook-form';
 import {yupResolver} from '@hookform/resolvers/yup';
 import {isValidUkrainianPhone} from '../../../utils.ts';
 import {agent} from '~/../APIClient.tsx';
-import {IDistrict} from '~/api';
+import {IDistrict, PaymentMethodCodeEnum} from '~/api';
 import {cityQuery} from '~/components/Header/city.query.ts';
 import {bonusOptionsQuery} from '~/common/queries/bonusOptions.query.ts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -40,6 +49,16 @@ import {nh, nw} from '~/common/normalize.helper.ts';
 
 import axios, {AxiosError} from 'axios';
 import {getToken} from '~/common/token/token.ts';
+import {checkoutQuery} from '~/Screens/Cart/checkout.query.ts';
+import {productsQuery} from '~/Screens/Home/products.query.ts';
+import {Autocomplete} from '~/components/Autocomplete/Autocomplete.tsx';
+import {addressesQuery} from '~/Screens/Cart/addresses.query.ts';
+import {formatMinutes} from '../utils/formatMinutes.ts';
+import {appConfig} from '~/config/app.ts';
+import {PhoneVerification} from '../../../../../components/PhoneVerification/PhoneVerification.tsx';
+import InAppBrowser from 'react-native-inappbrowser-reborn';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {CommonActions} from '@react-navigation/native';
 
 enum HouseTypeEnum {
   Apartment = 'high_rise_building',
@@ -48,6 +67,7 @@ enum HouseTypeEnum {
 enum PaymentMethodEnum {
   Cash = 'cash',
   Card = 'card',
+  Online = 'wayforpay',
 }
 enum ShippingMethodEnum {
   Courier = 'courier',
@@ -58,7 +78,6 @@ type FormValues = {
   shippingMethod: ShippingMethodEnum;
   paymentMethod: PaymentMethodEnum;
   spotId?: number | undefined;
-  districtId?: number | undefined;
   name: string;
   phone: string;
   email: string;
@@ -72,6 +91,7 @@ type FormValues = {
   sticks: number;
   change: string;
   bonusesToUse: string | null;
+  dontCall: boolean;
 };
 const validationRequired = 'Заповніть це поле';
 
@@ -82,10 +102,21 @@ const getDistrictDefaultSpot = (district: IDistrict) => {
 
 const Checkout = observer(({navigation}: {navigation: any}) => {
   const {data: spotsRes} = useQuery(spotsQuery);
+  const {data: checkoutRes} = useQuery(checkoutQuery);
   const {data: cityRes} = useQuery(cityQuery);
   const {data: bonusOptions} = useQuery(bonusOptionsQuery);
-  const queryClient = useQueryClient();
+  const {data: addresses} = useQuery(addressesQuery(store.city));
   const [logged, setLogged] = useState(false);
+  const [phoneConfirmed, setPhoneConfirmed] = useState(false);
+  const {data: productQueryRes, isLoading: isProductsLoading} = useQuery(
+    productsQuery({
+      category_slug: 'menu',
+    }),
+  );
+  const [unavailableCategories, setUnavailableCategories] = useState<number[]>(
+    [],
+  );
+  const [unavailableProducts, setUnavailableProducts] = useState<number[]>([]);
   const {
     data: user,
     isLoading,
@@ -99,10 +130,18 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     retry: false,
     onSuccess: async fetchedUser => {
       setLogged(true);
-      if (!fetchedUser) return;
+      if (!fetchedUser) {
+        return;
+      }
       setValue('email', fetchedUser?.email);
       setValue('phone', fetchedUser?.phone ?? '');
-      setValue('name', fetchedUser?.name ?? '');
+      setValue('name', [fetchedUser?.name, fetchedUser?.surname].filter(Boolean).join(' ') ?? '');
+      setValue('street', fetchedUser?.street ?? '');
+      setValue('houseType', fetchedUser?.house_type ?? '');
+      setValue('house', fetchedUser?.house ?? '');
+      setValue('floor', fetchedUser?.floor ?? '');
+      setValue('apartment', fetchedUser?.apartment ?? '');
+      setValue('entrance', fetchedUser?.entrance ?? '');
     },
     onError: () => {
       setLogged(false);
@@ -114,7 +153,6 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     }
   }, [user]);
   const {data: cartRes} = useQuery(cartQuery(store.city));
-
   const {data: shippingRes} = useQuery(shippingQuery);
   const {data: paymentRes} = useQuery(paymentQuery);
   const shippings = (shippingRes?.data || []).map(ship => ship);
@@ -125,7 +163,7 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     icon: shippingIcons[index],
   }));
 
-  const paymentIcons = [Cash, Card];
+  const paymentIcons = [Cash, Card, Card];
   const payments = (paymentRes?.data || []).map(item => item);
   const paymentObj = payments.map((item, index) => ({
     value: item.code,
@@ -133,12 +171,12 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     icon: paymentIcons[index],
   }));
 
-  const addresses = (spotsRes || []).map(spot => spot);
-  const spots = addresses.filter(spot => spot.city?.slug === store.city);
-
   const cities = (cityRes || []).map(city => city);
-
   const city = cities.find(c => c.slug === store.city);
+
+  const spots =
+    checkoutRes?.spots.filter(spot => spot.city?.slug === city?.slug) || [];
+
   const districts = city?.districts || [];
 
   const apart = [
@@ -171,7 +209,7 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
       .nullable()
       .test('max-bonus', 'Недостатньо бонусів', function (value) {
         const {user} = (this.options?.context as ValidationContext) ?? null;
-        const max = user?.bonus_amount ?? 0;
+        const max = (user?.bonus_amount ?? 0) / 100;
         if (user === null || user === undefined) {
           return true;
         }
@@ -192,13 +230,12 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
       ),
     street: yup.string().required(validationRequired),
     house: yup.string().required(validationRequired),
-    districtId: yup.number().required(validationRequired),
     bonusesToUse: yup
       .string()
       .nullable()
       .test('max-bonus', 'Недостатньо бонусів', function (value) {
         const {user} = (this.options?.context as ValidationContext) ?? null;
-        const max = user?.bonus_amount ?? 0;
+        const max = (user?.bonus_amount ?? 0) / 100;
         if (user === null || user === undefined) {
           return true;
         }
@@ -222,13 +259,12 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     apartment: yup.string().required(validationRequired),
     entrance: yup.string().required(validationRequired),
     floor: yup.string().required(validationRequired),
-    districtId: yup.number().required(validationRequired),
     bonusesToUse: yup
       .string()
       .nullable()
       .test('max-bonus', 'Недостатньо бонусів', function (value) {
         const {user} = (this.options?.context as ValidationContext) ?? null;
-        const max = user?.bonus_amount ?? 0;
+        const max = (user?.bonus_amount ?? 0) / 100;
         if (user === null || user === undefined) {
           return true;
         }
@@ -240,22 +276,22 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
   });
   const InitialValue: FormValues = {
     shippingMethod: ShippingMethodEnum.Takeaway,
-    spotId: 1,
-    districtId: districts.length === 1 ? districts[0].id : undefined,
+    spotId: spots.length === 1 ? spots[0].id : undefined,
     paymentMethod: PaymentMethodEnum.Cash,
-    name: user?.name ?? '',
+    name: [user?.name, user?.surname].filter(Boolean).join(' ') ?? '',
     phone: user?.phone ?? '',
     email: user?.email ?? '',
-    houseType: HouseTypeEnum.House,
-    house: '',
-    floor: '',
-    street: '',
-    apartment: '',
-    entrance: '',
+    houseType: user?.house_type ?? HouseTypeEnum.House,
+    house: user?.house ?? '',
+    floor: user?.floor ?? '',
+    street: user?.street ?? '',
+    apartment: user?.apartment ?? '',
+    entrance: user?.entrance ?? '',
     comment: '',
     sticks: 0,
     change: '',
     bonusesToUse: null,
+    dontCall: false,
   };
   const getValidationSchema = (values: FormValues) => {
     if (
@@ -309,6 +345,8 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     setError,
     setValue,
     watch,
+    trigger,
+    clearErrors,
   } = useForm<FormValues>({
     defaultValues: InitialValue,
     resolver: yupResolver<FormValues>(
@@ -322,11 +360,114 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
   const shippingMethod = useWatch({control, name: 'shippingMethod'});
   const paymentMethod = useWatch({control, name: 'paymentMethod'});
   const houseType = useWatch({control, name: 'houseType'});
-  if (!cartRes || Object.keys(cartRes).length < 1) {
-    navigation.navigate('CartScreen');
-    return null;
-  }
+  const spotId = useWatch({control, name: 'spotId'});
+  const currentAddress = useWatch({control, name: 'street'});
+  const houseNumber = useWatch({control, name: 'house'});
 
+  const addressesMemo = useMemo(() => {
+    if (!addresses?.addresses) {
+      return [];
+    }
+    return addresses.addresses.map(el => ({
+      id: el.id,
+      name: `${el.name_ua}, ${el.suburb_ua}`,
+      searchText:
+        el.name_ua == el.name_ru
+          ? `${el.name_ua} ${el.suburb_ua}`
+          : `${el.name_ua} ${el.name_ru} ${el.suburb_ua}`,
+      spotName: el.spot_name,
+      min_amount: el.min_amount,
+      delivery_price: el.delivery_price,
+      min: el.min,
+      unavailable_categories: el.unavailable_categories,
+      unavailable_products: el.unavailable_products,
+      recommended_products: el.recommended_products,
+      wait_minutes: el.wait_minutes_delivery,
+    }));
+  }, [addresses?.addresses]);
+
+  const selectedAddress = useMemo(() => {
+    return addressesMemo?.find(a => a.id === +currentAddress) ?? null;
+  }, [currentAddress, addresses]);
+
+  useEffect(() => {
+    if (!addresses?.addresses || !selectedAddress?.name) {
+      return;
+    }
+    if (!houseNumber) {
+      return;
+    }
+
+    const matchingAddresses = addresses.addresses.filter(
+      addr => `${addr.name_ua}, ${addr.suburb_ua}` === selectedAddress.name,
+    );
+    if (matchingAddresses.length === 0) {
+      return;
+    }
+
+    const matchedAddress = matchingAddresses?.find(addr =>
+      addr.buildings?.some(
+        b => b.toLowerCase().trim() === houseNumber.toLowerCase().trim(),
+      ),
+    );
+
+    const defaultAddress =
+      matchingAddresses?.find(addr => addr.buildings.length === 0) ??
+      matchingAddresses[0];
+
+    const resolvedAddress = matchedAddress ?? defaultAddress;
+    setValue('street', resolvedAddress.id.toString(), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+  }, [selectedAddress, houseNumber, addresses]);
+
+  const deliveryFee = useMemo(() => {
+    if (!selectedAddress) {
+      return 0;
+    }
+    if (total < selectedAddress.min_amount) {
+      return selectedAddress.delivery_price;
+    }
+    return 0;
+  }, [selectedAddress, total]);
+
+  useEffect(() => {
+    if (!cartRes || Object.keys(cartRes).length < 1) {
+      if (!orderSubmitted.current) {
+        navigation.navigate('CartScreen');
+      }
+    }
+  }, [cartRes, navigation]);
+  useEffect(() => {
+    if (shippingMethod === ShippingMethodEnum.Takeaway) {
+      const spot = spots.find(s => s.id === spotId);
+      setUnavailableCategories(
+        spot?.unavailable_categories?.map(c => c.id) ?? [],
+      );
+      setUnavailableProducts(spot?.unavailable_products ?? []);
+    } else {
+      setUnavailableCategories(selectedAddress?.unavailable_categories ?? []);
+      setUnavailableProducts(selectedAddress?.unavailable_products ?? []);
+    }
+  }, [shippingMethod, spotId, selectedAddress]);
+
+  const unavailableItems = useMemo(() => {
+    return ids
+      .filter(id => {
+        const item = cartRes?.[id];
+        if (!item) {
+          return false;
+        }
+        const hasUnavailableProduct = unavailableProducts.includes(+id);
+        //@ts-expect-error
+        const hasUnavailableCategory = productQueryRes?.data
+          .find(p => p.id === +id)
+          .categories?.some(cat => unavailableCategories.includes(cat.id));
+        return hasUnavailableProduct || hasUnavailableCategory;
+      })
+      .map(id => productQueryRes?.data.find(p => p.id === +id)?.name ?? id);
+  }, [cartRes, unavailableProducts, unavailableCategories]);
   const items = ids.map(id => ({
     id: id,
     variant_id: undefined,
@@ -347,6 +488,7 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     }
     return selected?.name;
   };
+  const orderSubmitted = useRef(false);
   const {mutate: orderMutation, isLoading: isSending} = useMutation({
     mutationFn: async (data: FormValues) => {
       const {
@@ -359,37 +501,41 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
         spotId,
         house,
         paymentMethod,
-        districtId,
         change,
         comment,
         entrance,
         email,
         apartment,
         bonusesToUse,
+        dontCall,
       } = data;
       const [firstname, lastname] = name.split(' ');
-      const address = [
-        ['Вулиця', street],
+      let address;
+      let addressDetails;
+      address = street;
+      addressDetails = [
         ['Будинок', house],
         ['Квартира', apartment],
         ["Під'їзд", entrance],
         ['Поверх', floor],
       ]
-        .filter(([_, value]) => !!value)
+        .filter(([label, value]) => !!value)
         .map(([label, value]) => `${label}: ${value}`)
         .join(', ');
 
       const paymentId = payments?.find(p => p.code === paymentMethod);
       const shippingId = shippings.find(s => s.code === shippingMethod);
 
-      const district = city?.districts.find(d => d.id === districtId);
-
       const resultantSpotId =
         shippingMethod === ShippingMethodEnum.Takeaway
           ? spotId
-          : getDistrictDefaultSpot(district!).id;
-      console.log(shippingId, resultantSpotId);
-      await agent.placeOrderV2({
+          : city?.spots[0]?.id;
+
+      let _comment = comment;
+      if (paymentId?.code === PaymentMethodEnum.Online && dontCall) {
+        _comment = 'Не передзвонювати| ' + comment;
+      }
+      const response = await agent.placeOrderV2({
         phone,
         email,
         firstname,
@@ -399,19 +545,84 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
         payment_method_id: paymentId!.id,
         shipping_method_id: shippingId!.id,
         spot_id: resultantSpotId!,
+        address_details: addressDetails,
+        house_type: houseType,
+        house: house,
+        floor: floor,
+        apartment: apartment,
+        entrance: entrance,
 
         change,
-        comment,
+        comment: _comment + ` |Мобільне замовлення ${Platform.OS}| `,
         cart: {items},
         sticks: +sticks,
         ...(bonusesToUse != null && {bonuses_to_use: +bonusesToUse}),
+
+        mobile: true,
       });
+      return response.data;
     },
-    onSuccess: async () => {
-      await AsyncStorage.removeItem(CART_STORAGE_KEY + `_${store.city}`);
-      await queryClient.invalidateQueries(['userData']);
-      navigation.goBack();
-      navigation.navigate('ThankYou');
+    onSuccess: async data => {
+      orderSubmitted.current = true;
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [{name: 'CartScreen'}],
+        }),
+      );
+
+
+      const paymentUrl = data?.res?.url;
+      const wayforpayOrder = data?.wayforpay_order;
+
+      if (paymentUrl) {
+        const deepLink = 'emojisushi://payment';
+        // Linking.openURL(paymentUrl);
+        // InAppBrowser.open(paymentUrl, {showTitle: true, showInRecents: true, enableBarCollapsing: true, enableDefaultShare: false});
+        navigation.navigate('PaymentStatusScreen', {
+          wait_time: currentWaitTime,
+          orderId: wayforpayOrder,
+          paymentUrl,
+        });
+        if (!(await InAppBrowser.isAvailable())) {
+          Linking.openURL(paymentUrl);
+          return;
+        }
+        const result = await InAppBrowser.openAuth(paymentUrl, deepLink, {
+          showTitle: false,
+          enableUrlBarHiding: true,
+          enableDefaultShare: false,
+          showInRecents: true,
+        });
+        if (result.type === 'success' && result.url) {
+          navigation.reset({
+            index: 0,
+            routes: [
+              {
+                name: 'PaymentStatusScreen',
+                params: {
+                  wait_time: currentWaitTime,
+                  orderId: wayforpayOrder,
+                  paymentUrl,
+                },
+              },
+            ],
+          });
+        }
+
+        // openBrowser(paymentUrl);
+
+        return;
+      } else if (paymentMethod === PaymentMethodEnum.Online) {
+        return;
+      }
+      const order_id = data?.poster_order?.incoming_order_id;
+
+      //   navigation.goBack();
+      navigation.navigate('ThankYou', {
+        order_id,
+        wait_time: currentWaitTime,
+      });
     },
     onError: e => {
       if (axios.isAxiosError(e)) {
@@ -420,7 +631,6 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
           errors?: Record<string, string[]>;
         }>;
         const fieldErrors = error.response?.data.errors;
-
         if (fieldErrors) {
           Object.keys(fieldErrors).forEach(key => {
             switch (key) {
@@ -437,6 +647,11 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
               }
             }
           });
+          if (fieldErrors[0].includes('заклад')) {
+            setError('spotId', {
+              message: fieldErrors[0] as any as string,
+            });
+          }
         }
       } else {
         throw new Error(`Unknown error ${e}`);
@@ -444,16 +659,34 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     },
   });
   const onSubmit = async (data: FormValues) => {
+    if (paymentMethod === PaymentMethodEnum.Online && !phoneConfirmed) {
+      setError('dontCall', {
+        type: 'manual',
+        message: 'Підтвердіть телефон перед оформленням',
+      });
+
+      return;
+    }
+    if (bonusesToUse && +bonusesToUse > 0) {
+      if (total * 0.5 < +bonusesToUse) {
+        setError('bonusesToUse', {
+          type: 'manual',
+          message:
+            'Не можна використати більше бонусів, ніж 50% від суми замовлення',
+        });
+        return;
+      }
+    }
     orderMutation(data);
   };
 
-  const districtError = errors.districtId?.message;
   const bonusAmount = useMemo(() => {
-    if (!bonusOptions) return;
+    if (!bonusOptions) {
+      return;
+    }
     const rate = bonusOptions.bonus_rate;
     const max = bonusOptions.max_bonus;
     const b = bonusOptions.get_bonus_from_used_bonus;
-    console.log(b)
     let dif = 0;
     if (!b) {
       dif = +(bonusesToUse ?? 0);
@@ -461,19 +694,50 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
     const amount = (total - dif) * rate;
     return Math.floor(amount);
   }, [bonusOptions, bonusesToUse]);
+  let currentSpot = spotsRes?.find(el => el.id === spotId);
+  let currentWaitTime =
+    shippingMethod === ShippingMethodEnum.Takeaway
+      ? currentSpot?.wait_minutes_spot
+      : selectedAddress?.wait_minutes;
 
+  const onlinePaymentClosed = isClosed({
+    start: appConfig.onlinePaymentHours[0],
+    end: appConfig.onlinePaymentHours[1],
+  });
+
+  const filteredPaymentMethods = paymentObj.filter(option => {
+    const isOnline = option.value === PaymentMethodEnum.Online;
+
+    if (isOnline) {
+      return (
+        shippingMethod === ShippingMethodEnum.Courier && !onlinePaymentClosed
+      );
+    }
+
+    return true;
+  });
+  useEffect(() => {
+    if (
+      paymentMethod === PaymentMethodEnum.Online &&
+      shippingMethod !== ShippingMethodEnum.Courier
+    ) {
+      setValue('paymentMethod', PaymentMethodEnum.Cash);
+    }
+  }, [shippingMethod]);
+  const insets = useSafeAreaInsets();
   return (
     <View>
       <Spinner
         visible={isSending || isLoading}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />
-      <Header />
-      <BackButton navigation={navigation} />
-      <View style={styles.container}>
+      <Header showBackButton navigation={navigation} dropdownVisible={false} />
+
+      <View style={[styles.container, {paddingBottom: insets.bottom + nh(90)}]}>
         <ScrollView
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollView}
           showsVerticalScrollIndicator={false}>
           <Text style={styles.header}>Оформлення замовлення</Text>
@@ -504,46 +768,6 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
 
           {shippingMethod === ShippingMethodEnum.Courier ? (
             <View>
-              {districts.length !== 1 && (
-                <Controller
-                  name="districtId"
-                  control={control}
-                  render={({field: {onChange, value}}) => (
-                    <View
-                      style={[
-                        styles.dropDownContainer,
-                        districtError ? styles.errorFocus : null,
-                        {marginTop: nh(15), zIndex: 5},
-                      ]}>
-                      <DropDown
-                        value={value}
-                        placeholder={
-                          <Text style={styles.whiteText}>
-                            Виберіть район доставки
-                          </Text>
-                        }
-                        options={districts}
-                        onChange={d => onChange(d)}
-                        error={errors.districtId?.message}
-                        snapPoints={'30'}>
-                        <View style={styles.inputContainer}>
-                          <Text style={styles.selectOption}>
-                            {getSelectedDistrict(value) ? (
-                              <Text style={styles.whiteText}>
-                                {getSelectedDistrict(value)}
-                              </Text>
-                            ) : (
-                              'Виберіть район доставки'
-                            )}
-                          </Text>
-                          <Caret color="#727272" width="15" />
-                        </View>
-                      </DropDown>
-                    </View>
-                  )}
-                />
-              )}
-
               <Controller
                 name="houseType"
                 control={control}
@@ -567,12 +791,15 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
                   control={control}
                   render={({field: {onChange, value}}) => (
                     <View style={{width: nw(250), zIndex: 6}}>
-                      <Input
-                        placeholder={'Вулиця'}
-                        inputMode={'text'}
-                        onChangeText={v => onChange(v)}
+                      <Autocomplete
+                        placeholder="Вулиця"
+                        noResultsText="Адресу не знайдено"
+                        typeMoreText="Введіть ще символи"
+                        data={addressesMemo}
                         value={value}
+                        onChange={onChange}
                         error={errors.street?.message}
+                        duplicates={false}
                       />
                     </View>
                   )}
@@ -599,6 +826,24 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
                   )}
                 />
               </View>
+              {shippingMethod === ShippingMethodEnum.Courier &&
+                selectedAddress &&
+                (total < selectedAddress.min ||
+                  (selectedAddress.min_amount > 0 && deliveryFee !== 0)) && (
+                  <View style={styles.deliveryInfoContainer}>
+                    {total < selectedAddress.min && (
+                      <Text style={styles.deliveryInfoWarning}>
+                        Доставка доступна від {selectedAddress.min} ₴
+                      </Text>
+                    )}
+
+                    {selectedAddress.min_amount > 0 && deliveryFee !== 0 && (
+                      <Text style={styles.deliveryInfoText}>
+                        Безкоштовна доставка від {selectedAddress.min_amount} ₴
+                      </Text>
+                    )}
+                  </View>
+                )}
               {houseType === HouseTypeEnum.Apartment && (
                 <View style={styles.apartmentInputs}>
                   <Controller
@@ -650,45 +895,45 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
               )}
             </View>
           ) : (
-            spots.length !== 1 //&& (
-            //   <Controller
-            //     name="spotId"
-            //     control={control}
-            //     render={({field: {onChange, value}}) => (
-            //       <View
-            //         style={[
-            //           styles.dropDownContainer,
-            //           spotError ? styles.errorFocus : null,
-            //           {marginTop: nh(15), zIndex: 5},
-            //         ]}>
-            //         <DropDown
-            //           value={value}
-            //           placeholder={
-            //             <Text style={styles.whiteText}>
-            //               Оберіть найближчий заклад
-            //             </Text>
-            //           }
-            //           options={spots}
-            //           onChange={s => onChange(s)}
-            //           snapPoints={'30'}
-            //           error={errors.spotId?.message}>
-            //           <View style={styles.inputContainer}>
-            //             <Text style={styles.selectOption}>
-            //               {getSelectedSpot(value) ? (
-            //                 <Text style={styles.whiteText}>
-            //                   {getSelectedSpot(value)}
-            //                 </Text>
-            //               ) : (
-            //                 'Оберіть найближчий заклад'
-            //               )}
-            //             </Text>
-            //             <Caret color="#727272" width="15" />
-            //           </View>
-            //         </DropDown>
-            //       </View>
-            //     )}
-            //   />
-            //)
+            spots.length !== 1 && (
+              <Controller
+                name="spotId"
+                control={control}
+                render={({field: {onChange, value}}) => (
+                  <View
+                    style={[
+                      styles.dropDownContainer,
+                      //   spotError ? styles.errorFocus : null,
+                      {marginTop: nh(15), zIndex: 5},
+                    ]}>
+                    <DropDown
+                      value={value}
+                      placeholder={
+                        <Text style={styles.whiteText}>
+                          Оберіть найближчий заклад
+                        </Text>
+                      }
+                      options={spots}
+                      onChange={s => onChange(s)}
+                      snapPoints={'30'}
+                      error={errors.spotId?.message}>
+                      <View style={styles.inputContainer}>
+                        <Text style={styles.selectOption}>
+                          {getSelectedSpot(value) ? (
+                            <Text style={styles.whiteText}>
+                              {getSelectedSpot(value)}
+                            </Text>
+                          ) : (
+                            'Оберіть найближчий заклад'
+                          )}
+                        </Text>
+                        <Caret color="#727272" width="15" />
+                      </View>
+                    </DropDown>
+                  </View>
+                )}
+              />
+            )
           )}
           <Controller
             name="name"
@@ -706,7 +951,7 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
             )}
           />
 
-          <Controller
+          {/* <Controller
             name="email"
             control={control}
             render={({field: {onChange, value}}) => (
@@ -721,7 +966,7 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
                 />
               </View>
             )}
-          />
+          /> */}
           <Controller
             name="phone"
             control={control}
@@ -731,7 +976,12 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
                   placeholder="Телефон"
                   inputMode="tel"
                   value={value}
-                  onChangeText={v => onChange(v)}
+                  onChangeText={v => {
+                    onChange(v);
+                    if (errors.phone) {
+                      clearErrors('phone');
+                    }
+                  }}
                   error={errors.phone?.message}
                 />
               </View>
@@ -760,7 +1010,9 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
                   <Input
                     placeholder={
                       logged
-                        ? `Бонуси для використання (баланс: ${user?.bonus_amount})`
+                        ? `Бонуси для використання (баланс: ${
+                            (user?.bonus_amount ?? 0) / 100
+                          } ₴)`
                         : 'Бонуси (тільки для зареєстрованих користувачів)'
                     }
                     inputMode="numeric"
@@ -789,7 +1041,7 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
               <Swiper
                 value={value}
                 onValueChange={onChange}
-                options={paymentObj}
+                options={filteredPaymentMethods}
               />
             )}
           />
@@ -834,6 +1086,17 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
               </View>
             )}
           />
+          {paymentMethod === PaymentMethodEnum.Online && (
+            <PhoneVerification
+              control={control}
+              phone={watch('phone')}
+              city_slug={store.city}
+              enabled={paymentMethod === PaymentMethodEnum.Online}
+              trigger={trigger}
+              onPhoneConfirmedChange={setPhoneConfirmed}
+              error={errors.dontCall?.message}
+            />
+          )}
           <Text
             style={[
               styles.whiteText,
@@ -851,35 +1114,74 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
             <Text style={styles.whiteText}>Сума замовлення</Text>
             <Text style={styles.whiteText}>{total} ₴</Text>
           </View>
+          {shippingMethod === ShippingMethodEnum.Courier && (
+            <View style={styles.priceWrapper}>
+              <Text style={styles.whiteText}>Доставка</Text>
+              <Text style={styles.whiteText}>
+                {deliveryFee === 0 ? 'Безкоштовно' : `${deliveryFee} ₴`}
+              </Text>
+            </View>
+          )}
           {+(bonusesToUse ?? 0) > 0 && (
             <View style={styles.priceWrapper}>
               <Text style={styles.whiteText}>
-                Використано {bonusesToUse} бонусів
+                Використано {Number(bonusesToUse).toFixed(2)} ₴ бонусів
               </Text>
-              <Text style={styles.whiteText}>-{bonusesToUse} ₴</Text>
+              <Text style={styles.whiteText}>
+                -{Number(bonusesToUse).toFixed(2)} ₴
+              </Text>
             </View>
           )}
           <View style={styles.priceWrapper}>
             <Text style={styles.whiteText}>До оплати</Text>
             <Text style={styles.whiteText}>
-              {total - +(bonusesToUse ?? 0)} ₴
+              {(total + deliveryFee - +(bonusesToUse ?? 0)).toFixed(2)} ₴{' '}
             </Text>
           </View>
-          {logged && !!bonusAmount && !!bonusOptions?.bonus_enabled && (
+          {!!currentWaitTime && (
             <View style={styles.priceWrapper}>
+              <Text style={styles.whiteText}>Приблизний час очікування:</Text>
               <Text style={styles.whiteText}>
-                Буде отримано {bonusAmount} бонусів
+                {`${formatMinutes(currentWaitTime)}`}
               </Text>
             </View>
           )}
+          {/* {logged && !!bonusAmount && !!bonusOptions?.bonus_enabled && (
+            <View style={styles.priceWrapper}>
+              <Text style={styles.whiteText}>
+                Буде отримано {(bonusAmount ?? 0) / 100} ₴ бонусів
+              </Text>
+            </View>
+          )} */}
 
-          <TouchableOpacity
-            style={styles.orderBtn}
-            onPress={() => {
-              handleSubmit(onSubmit)();
-            }}>
-            <Text style={styles.blackText}>Замовити</Text>
-          </TouchableOpacity>
+          {unavailableItems.length > 0 ? (
+            <View style={styles.unavailableContainer}>
+              <Text style={styles.unavailableTitle}>
+                Наступні позиції тимчасово недоступні:
+              </Text>
+              {unavailableItems.map(name => (
+                <Text key={name} style={styles.unavailableItem}>
+                  — {name}
+                </Text>
+              ))}
+            </View>
+          ) : shippingMethod === ShippingMethodEnum.Courier &&
+            selectedAddress &&
+            total < selectedAddress.min ? (
+            <View style={styles.unavailableContainer}>
+              <Text style={styles.unavailableTitle}>
+                Мінімальна сума замовлення для доставки: {selectedAddress.min} ₴
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.orderBtn}
+              onPress={() => {
+                handleSubmit(onSubmit, errors => {})();
+              }}>
+              <Text style={styles.blackText}>Замовити</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     </View>
@@ -889,6 +1191,7 @@ const Checkout = observer(({navigation}: {navigation: any}) => {
 const styles = StyleSheet.create({
   container: {
     height: '100%',
+    width: '100%',
     backgroundColor: '#141414',
   },
   scrollView: {
@@ -1026,7 +1329,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFE600',
     borderRadius: 10,
-    marginBottom: nh(180),
+    marginBottom: nh(150),
   },
   inputContainer: {
     display: 'flex',
@@ -1050,6 +1353,52 @@ const styles = StyleSheet.create({
     backgroundColor: '#272727',
     paddingLeft: nw(10),
     paddingRight: nw(10),
+  },
+  unavailableContainer: {
+    width: nw(365),
+    backgroundColor: '#2A0A0A',
+    borderRadius: 10,
+    padding: nw(15),
+    borderWidth: 1,
+    borderColor: 'rgb(205, 56, 56)',
+    marginBottom: nh(150),
+  },
+  unavailableTitle: {
+    color: 'rgb(205, 56, 56)',
+    fontSize: nh(14),
+    fontWeight: '600',
+    marginBottom: nh(8),
+  },
+  unavailableItem: {
+    color: 'white',
+    fontSize: nh(13),
+    marginTop: nh(4),
+  },
+  deliveryInfoContainer: {
+    width: nw(365),
+    marginTop: nh(8),
+    marginBottom: nh(5),
+    gap: 4,
+  },
+  deliveryInfoText: {
+    fontSize: nh(14),
+    color: '#616161',
+  },
+  deliveryInfoWarning: {
+    fontSize: nh(14),
+    fontWeight: '600',
+    color: 'rgb(205, 56, 56)',
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerSide: {
+    width: nw(50),
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
   },
 });
 

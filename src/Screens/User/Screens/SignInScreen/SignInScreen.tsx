@@ -14,18 +14,26 @@ import {agent} from '~/../APIClient.tsx';
 import {useMutation, useQueryClient} from '@tanstack/react-query';
 import axios, {AxiosError} from 'axios';
 import {setToken} from '~/common/token/token';
+import {isValidUkrainianPhone} from '~/Screens/Cart/utils';
 
 const validationRequired = 'Заповніть це поле';
 const LoginSchema = yup.object({
-  email: yup.string().email().required(validationRequired),
+  phone: yup
+    .string()
+    .required(validationRequired)
+    .test(
+      'is possible phone number',
+      () => 'Телефон повинен бути у форматі +380xxxxxxxxx',
+      isValidUkrainianPhone,
+    ),
   password: yup.string().min(8).max(255).required(validationRequired),
 });
 type FormValues = {
-  email: string;
+  phone: string;
   password: string;
 };
 const InitialValue: FormValues = {
-  email: '',
+  phone: '',
   password: '',
 };
 
@@ -45,9 +53,9 @@ const SignInScreen = ({navigation}: {navigation: any}) => {
   });
   const {mutate: loginMutation, isLoading} = useMutation({
     mutationFn: async (data: FormValues) => {
-      const {email, password} = data;
+      const {phone, password} = data;
       return await agent.login({
-        email,
+        phone,
         password,
       });
     },
@@ -81,24 +89,28 @@ const SignInScreen = ({navigation}: {navigation: any}) => {
     <View style={styles.container}>
       <Spinner
         visible={isLoading}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />
-      <Header />
-      <Text style={styles.header}>Вход в аккаунт</Text>
+      <Header
+        dropdownVisible={false}
+        navigation={navigation}
+        showBackButton={true}
+      />
+      <Text style={styles.header}>Вхід в аккаунт</Text>
       <View>
-        {/* <Input placeholder={'Email'} inputMode={'email'} /> */}
+        {/* <Input placeholder={'Phone'} inputMode={'tel'} /> */}
         <Controller
-          name="email"
+          name="phone"
           control={control}
           render={({field: {onChange, value}}) => (
             <Input
-              placeholder="Email"
-              inputMode="email"
+              placeholder="Телефон"
+              inputMode="tel"
               value={value}
               onChangeText={v => onChange(v)}
-              error={errors.email?.message}
+              error={errors.phone?.message}
             />
           )}
         />
@@ -120,9 +132,9 @@ const SignInScreen = ({navigation}: {navigation: any}) => {
       </View>
       <View style={styles.textRight}>
         <Text
-          onPress={() => navigation.navigate('ResetPassword')}
+          onPress={() => navigation.replace('SignInWithPhone')}
           style={styles.forgotPass}>
-          Забыли пароль?
+          Вхід через СМС
         </Text>
       </View>
 
@@ -132,15 +144,15 @@ const SignInScreen = ({navigation}: {navigation: any}) => {
           // @ts-ignore
           onSubmit,
         )}>
-        <Text style={styles.btnText}>Войти</Text>
+        <Text style={styles.btnText}>Вхід</Text>
       </TouchableOpacity>
       <View style={styles.textRight}>
         <Text style={styles.yellowText}>
-          Нет аккаунта?{' '}
+          Не маєте аккаунту?{' '}
           <Text
             style={styles.forgotPass}
             onPress={() => navigation.navigate('SignUp')}>
-            Регистрация
+            Реєстрація
           </Text>
         </Text>
       </View>

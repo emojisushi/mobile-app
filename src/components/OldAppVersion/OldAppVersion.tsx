@@ -29,17 +29,17 @@ const OldAppVersion = ({children}: Props) => {
       }) < 0
     : false;
   if (isLoading)
-    return (
+    {return (
       <Spinner
         visible={isLoading}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />
-    );
+    );}
 
   if (isOutdated)
-    return (
+    {return (
       <View style={styles.container}>
         <Text style={styles.title}>Ваша версія додатку застаріла</Text>
         <Text style={styles.version}>Версія: {version}</Text>
@@ -56,7 +56,7 @@ const OldAppVersion = ({children}: Props) => {
           </Pressable>
         )}
       </View>
-    );
+    );}
 
   return <>{children}</>;
 };

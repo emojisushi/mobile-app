@@ -14,8 +14,7 @@ const DeliveryAndPayment = observer(({navigation}: {navigation: any}) => {
   const city = (cityRes || []).find(city => city.slug === store.city);
   return (
     <View style={styles.container}>
-      <Header />
-      <BackButton navigation={navigation} />
+      <Header showBackButton={true} navigation={navigation} />
       <View style={styles.map}>
         <Text style={styles.text}>Доставка і оплата</Text>
         {city !== undefined && (

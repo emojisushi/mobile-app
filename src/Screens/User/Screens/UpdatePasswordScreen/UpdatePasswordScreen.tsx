@@ -27,7 +27,7 @@ const InitialValue: FormValues = {
   password: '',
   password_confirmation: '',
 };
-const UpdatePasswordScreen = () => {
+const UpdatePasswordScreen = ({navigation}: {navigation: any}) => {
   const [isSent, setIsSent] = useState(false);
   const {mutate: updatePasswordMutation, isLoading} = useMutation({
     mutationFn: async (data: FormValues) => {
@@ -77,12 +77,12 @@ const UpdatePasswordScreen = () => {
     <View style={styles.container}>
       <Spinner
         visible={isLoading}
-        textContent={'Loading...'}
+        textContent={'Зачекайте...'}
         textStyle={{color: 'yellow'}}
         overlayColor="rgba(0, 0, 0, 0.75)"
       />
-      <Header />
-      <Text style={styles.header}>Смена пароля</Text>
+      <Header dropdownVisible={false} navigation={navigation} showBackButton={true} />
+      <Text style={styles.header}>Змінити пароль</Text>
       <View style={styles.inputTextWrapper}>
         <Controller
           name="password_old"

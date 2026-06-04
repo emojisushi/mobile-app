@@ -5,7 +5,7 @@ import Caret from '~/assets/Icons/Caret.svg';
 
 export const BackButton = ({navigation}: {navigation: any}) => {
   return (
-    <Pressable style={styles.hideBtn} onPress={() => navigation.goBack()}>
+    <Pressable style={[styles.hideBtn]} onPress={() => navigation.goBack()}>
       <Caret style={styles.caret} width="21" height="21" color="black" />
     </Pressable>
   );
@@ -16,9 +16,6 @@ const styles = StyleSheet.create({
     transform: [{rotate: '90deg'}],
   },
   hideBtn: {
-    position: 'absolute',
-    marginTop: nw(15),
-    marginLeft: nw(13),
     width: nw(31),
     height: nw(31),
     display: 'flex',

@@ -61,7 +61,7 @@ export const ProductCartCard = observer(({item}: {item: Product}) => {
           <Text style={styles.description}>{item.descriptionShort}</Text>
         </View>
       </View>
-      <Pressable onPress={handleRemove} style={styles.trash}>
+      <Pressable onPress={handleRemove} style={styles.trash} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
         <Trash color="#CD3838" />
       </Pressable>
       <View style={styles.counterWrapper}>
